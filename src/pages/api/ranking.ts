@@ -6,40 +6,40 @@ interface RankingEntry {
   date: string;
 }
 
-// ── Storage helpers ──────────────────────────────────────────────────────────
-// Uses Vercel KV in production, local JSON file in development.
-
 async function readRanking(): Promise<RankingEntry[]> {
-  if (process.env.KV_REST_API_URL) {
-    const { kv } = await import('@vercel/kv');
-    return (await kv.get<RankingEntry[]>('ranking')) ?? [];
+  if (process.env.UPSTASH_REDIS_REST_URL) {
+    const { Redis } = await import('@upstash/redis');
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    });
+    return (await redis.get<RankingEntry[]>('ranking')) ?? [];
   }
-  // Local fallback
+  // Local fallback: JSON file
   const { readFileSync, existsSync, mkdirSync } = await import('fs');
   const { resolve } = await import('path');
-  const file = resolve(process.cwd(), 'data', 'ranking.json');
-  if (!existsSync(file)) {
-    mkdirSync(resolve(process.cwd(), 'data'), { recursive: true });
-    return [];
-  }
+  const dir = resolve(process.cwd(), 'data');
+  const file = resolve(dir, 'ranking.json');
+  if (!existsSync(file)) { mkdirSync(dir, { recursive: true }); return []; }
   try { return JSON.parse(readFileSync(file, 'utf-8')); } catch { return []; }
 }
 
 async function writeRanking(data: RankingEntry[]): Promise<void> {
-  if (process.env.KV_REST_API_URL) {
-    const { kv } = await import('@vercel/kv');
-    await kv.set('ranking', data);
+  if (process.env.UPSTASH_REDIS_REST_URL) {
+    const { Redis } = await import('@upstash/redis');
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    });
+    await redis.set('ranking', data);
     return;
   }
-  // Local fallback
   const { writeFileSync, mkdirSync, existsSync } = await import('fs');
   const { resolve } = await import('path');
   const dir = resolve(process.cwd(), 'data');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(resolve(dir, 'ranking.json'), JSON.stringify(data, null, 2), 'utf-8');
 }
-
-// ── Handlers ─────────────────────────────────────────────────────────────────
 
 export const GET: APIRoute = async () => {
   try {
@@ -51,29 +51,24 @@ export const GET: APIRoute = async () => {
     });
   } catch {
     return new Response(JSON.stringify({ error: 'Error llegint el ranking' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      status: 500, headers: { 'Content-Type': 'application/json' },
     });
   }
 };
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const body = await request.json();
-    const { name, score } = body as { name: string; score: number };
+    const { name, score } = await request.json() as { name: string; score: number };
 
-    if (!name || typeof name !== 'string' || name.trim().length < 1) {
+    if (!name || typeof name !== 'string' || name.trim().length < 1)
       return new Response(JSON.stringify({ error: 'Nom invàlid' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        status: 400, headers: { 'Content-Type': 'application/json' },
       });
-    }
-    if (typeof score !== 'number' || score < 0 || score > 100) {
+
+    if (typeof score !== 'number' || score < 0 || score > 100)
       return new Response(JSON.stringify({ error: 'Puntuació invàlida' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        status: 400, headers: { 'Content-Type': 'application/json' },
       });
-    }
 
     const trimmedName = name.trim();
     const ranking = await readRanking();
@@ -90,15 +85,12 @@ export const POST: APIRoute = async ({ request }) => {
 
     await writeRanking(ranking);
     const sorted = [...ranking].sort((a, b) => b.score - a.score);
-
     return new Response(JSON.stringify({ success: true, ranking: sorted }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      status: 200, headers: { 'Content-Type': 'application/json' },
     });
   } catch {
     return new Response(JSON.stringify({ error: 'Error intern del servidor' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      status: 500, headers: { 'Content-Type': 'application/json' },
     });
   }
 };

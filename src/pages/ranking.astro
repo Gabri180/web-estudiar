@@ -11,9 +11,13 @@ let ranking: RankingEntry[] = [];
 let fetchError = false;
 
 try {
-  if (process.env.KV_REST_API_URL) {
-    const { kv } = await import('@vercel/kv');
-    const data = await kv.get<RankingEntry[]>('ranking');
+  if (process.env.UPSTASH_REDIS_REST_URL) {
+    const { Redis } = await import('@upstash/redis');
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    });
+    const data = await redis.get<RankingEntry[]>('ranking');
     ranking = (data ?? []).sort((a, b) => b.score - a.score);
   } else {
     const { readFileSync, existsSync } = await import('fs');

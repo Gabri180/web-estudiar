@@ -9,17 +9,19 @@ interface RankingEntry {
 
 let ranking: RankingEntry[] = [];
 let fetchError = false;
+let errorMsg = '';
 
 try {
   if (process.env.UPSTASH_REDIS_REST_URL) {
     const { Redis } = await import('@upstash/redis');
     const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
+      url: process.env.UPSTASH_REDIS_REST_URL,
       token: process.env.UPSTASH_REDIS_REST_TOKEN!,
     });
     const data = await redis.get<RankingEntry[]>('ranking');
     ranking = (data ?? []).sort((a, b) => b.score - a.score);
   } else {
+    // Local dev: read from JSON file
     const { readFileSync, existsSync } = await import('fs');
     const { resolve } = await import('path');
     const file = resolve(process.cwd(), 'data', 'ranking.json');
@@ -28,8 +30,9 @@ try {
       ranking = parsed.sort((a, b) => b.score - a.score);
     }
   }
-} catch {
+} catch (e: any) {
   fetchError = true;
+  errorMsg = e?.message ?? 'Error desconegut';
 }
 
 const medals: Record<number, string> = {
@@ -60,7 +63,7 @@ function formatDate(iso: string): string {
     {fetchError ? (
       <div class="card p-8 text-center space-y-3">
         <p class="text-red-400 text-lg">⚠️ No s'ha pogut carregar el rànquing.</p>
-        <p class="text-slate-500 text-sm">Comprova la connexió i torna-ho a intentar.</p>
+        <p class="text-slate-500 text-sm font-mono">{errorMsg}</p>
         <a href="/ranking" class="btn-outline inline-flex items-center gap-2">
           🔄 Reintenta
         </a>

@@ -7,11 +7,11 @@ interface RankingEntry {
 }
 
 async function readRanking(): Promise<RankingEntry[]> {
-  if (process.env.UPSTASH_REDIS_REST_URL) {
+  if (process.env.KV_REST_API_URL) {
     const { Redis } = await import('@upstash/redis');
     const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      url: process.env.KV_REST_API_URL!,
+      token: process.env.KV_REST_API_TOKEN!,
     });
     return (await redis.get<RankingEntry[]>('ranking')) ?? [];
   }
@@ -25,11 +25,11 @@ async function readRanking(): Promise<RankingEntry[]> {
 }
 
 async function writeRanking(data: RankingEntry[]): Promise<void> {
-  if (process.env.UPSTASH_REDIS_REST_URL) {
+  if (process.env.KV_REST_API_URL) {
     const { Redis } = await import('@upstash/redis');
     const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      url: process.env.KV_REST_API_URL!,
+      token: process.env.KV_REST_API_TOKEN!,
     });
     await redis.set('ranking', data);
     return;

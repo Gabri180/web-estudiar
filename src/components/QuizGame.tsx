@@ -68,6 +68,7 @@ export default function QuizGame() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, score: finalScore }),
+        keepalive: true,
       });
       const data = await res.json();
       if (res.ok && isFinal) {

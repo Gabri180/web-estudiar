@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"C:/Users/marti/Desktop/Proyectos/web-estudiar\" && npm run build 2>&1)"
+    ]
+  }
+}

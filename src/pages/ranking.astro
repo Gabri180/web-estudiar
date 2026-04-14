@@ -1,0 +1,175 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+interface RankingEntry {
+  name: string;
+  score: number;
+  date: string;
+}
+
+let ranking: RankingEntry[] = [];
+let fetchError = false;
+
+try {
+  if (process.env.KV_REST_API_URL) {
+    const { kv } = await import('@vercel/kv');
+    const data = await kv.get<RankingEntry[]>('ranking');
+    ranking = (data ?? []).sort((a, b) => b.score - a.score);
+  } else {
+    const { readFileSync, existsSync } = await import('fs');
+    const { resolve } = await import('path');
+    const file = resolve(process.cwd(), 'data', 'ranking.json');
+    if (existsSync(file)) {
+      const parsed: RankingEntry[] = JSON.parse(readFileSync(file, 'utf-8'));
+      ranking = parsed.sort((a, b) => b.score - a.score);
+    }
+  }
+} catch {
+  fetchError = true;
+}
+
+const medals: Record<number, string> = {
+  0: '🥇',
+  1: '🥈',
+  2: '🥉',
+};
+
+function formatDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('ca-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return '-';
+  }
+}
+---
+
+<Layout title="Ranking">
+  <div class="max-w-3xl mx-auto space-y-8">
+    <!-- Header -->
+    <div class="text-center space-y-3">
+      <div class="text-5xl">🏆</div>
+      <h1 class="text-4xl font-extrabold text-white">Rànquing Global</h1>
+      <p class="text-slate-400">Els millors coneixedors de capitals asiàtiques</p>
+    </div>
+
+    {fetchError ? (
+      <div class="card p-8 text-center space-y-3">
+        <p class="text-red-400 text-lg">⚠️ No s'ha pogut carregar el rànquing.</p>
+        <p class="text-slate-500 text-sm">Comprova la connexió i torna-ho a intentar.</p>
+        <a href="/ranking" class="btn-outline inline-flex items-center gap-2">
+          🔄 Reintenta
+        </a>
+      </div>
+    ) : ranking.length === 0 ? (
+      <div class="card p-10 text-center space-y-4">
+        <div class="text-5xl">😴</div>
+        <p class="text-xl font-semibold text-slate-300">Encara no hi ha puntuacions.</p>
+        <p class="text-slate-500">Sigues el primer en completar un quiz!</p>
+        <a href="/quiz" class="btn-primary inline-flex items-center gap-2">
+          🎯 Jugar ara
+        </a>
+      </div>
+    ) : (
+      <div class="card overflow-hidden">
+        <!-- Top 3 podium (if enough players) -->
+        {ranking.length >= 3 && (
+          <div class="bg-white/5 p-6 grid grid-cols-3 gap-4 border-b border-white/10">
+            <!-- Silver (2nd) -->
+            <div class="flex flex-col items-center gap-2 pt-4">
+              <div class="text-3xl">🥈</div>
+              <div class="w-16 h-16 rounded-full bg-slate-400/20 flex items-center justify-center text-xl font-bold text-slate-300 border-2 border-slate-400/30">
+                {ranking[1].name.charAt(0).toUpperCase()}
+              </div>
+              <p class="font-semibold text-slate-300 text-sm truncate max-w-full px-2 text-center" title={ranking[1].name}>{ranking[1].name}</p>
+              <p class="text-slate-400 font-bold">{ranking[1].score} pts</p>
+            </div>
+            <!-- Gold (1st) -->
+            <div class="flex flex-col items-center gap-2">
+              <div class="text-4xl">🥇</div>
+              <div class="w-20 h-20 rounded-full bg-yellow-400/20 flex items-center justify-center text-2xl font-bold text-yellow-300 border-2 border-yellow-400/40">
+                {ranking[0].name.charAt(0).toUpperCase()}
+              </div>
+              <p class="font-bold text-white truncate max-w-full px-2 text-center" title={ranking[0].name}>{ranking[0].name}</p>
+              <p class="text-yellow-400 font-bold">{ranking[0].score} pts</p>
+            </div>
+            <!-- Bronze (3rd) -->
+            <div class="flex flex-col items-center gap-2 pt-4">
+              <div class="text-3xl">🥉</div>
+              <div class="w-16 h-16 rounded-full bg-amber-700/20 flex items-center justify-center text-xl font-bold text-amber-600 border-2 border-amber-700/30">
+                {ranking[2].name.charAt(0).toUpperCase()}
+              </div>
+              <p class="font-semibold text-slate-300 text-sm truncate max-w-full px-2 text-center" title={ranking[2].name}>{ranking[2].name}</p>
+              <p class="text-slate-400 font-bold">{ranking[2].score} pts</p>
+            </div>
+          </div>
+        )}
+
+        <!-- Full table -->
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-white/10 text-slate-500 text-xs uppercase tracking-widest">
+                <th class="text-left px-6 py-4">#</th>
+                <th class="text-left px-6 py-4">Jugador</th>
+                <th class="text-right px-6 py-4">Puntuació</th>
+                <th class="text-right px-6 py-4 hidden sm:table-cell">Data</th>
+              </tr>
+            </thead>
+            <tbody id="ranking-body">
+              {ranking.map((entry, idx) => (
+                <tr
+                  class={`border-b border-white/5 transition-colors hover:bg-white/5 ${idx < 3 ? 'bg-white/3' : ''}`}
+                  data-player-name={entry.name.toLowerCase()}
+                >
+                  <td class="px-6 py-4 text-slate-400 font-bold">
+                    {medals[idx] ?? <span class="text-slate-500">{idx + 1}</span>}
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="font-semibold text-white player-name-cell">{entry.name}</span>
+                  </td>
+                  <td class="px-6 py-4 text-right">
+                    <span class={`font-bold ${idx === 0 ? 'text-yellow-400' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-600' : 'text-indigo-400'}`}>
+                      {entry.score} pts
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 text-right text-slate-500 text-sm hidden sm:table-cell">
+                    {formatDate(entry.date)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+
+    <!-- Action buttons -->
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <a href="/quiz" class="btn-primary flex items-center justify-center gap-2">
+        <span>🎯</span> Jugar de nou
+      </a>
+      <a href="/" class="btn-outline flex items-center justify-center gap-2">
+        <span>🏠</span> Inici
+      </a>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Highlight the current player's row client-side
+  const playerName = localStorage.getItem('playerName');
+  if (playerName) {
+    const rows = document.querySelectorAll<HTMLTableRowElement>('[data-player-name]');
+    rows.forEach((row) => {
+      if (row.dataset.playerName === playerName.toLowerCase()) {
+        row.classList.add('bg-indigo-500/15', 'border-indigo-500/30', '!border-b');
+        const nameCell = row.querySelector('.player-name-cell');
+        if (nameCell) {
+          nameCell.classList.add('text-indigo-300');
+          nameCell.textContent = nameCell.textContent + ' (tu)';
+        }
+      }
+    });
+  }
+</script>

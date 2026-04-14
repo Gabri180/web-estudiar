@@ -3,22 +3,27 @@ import type { APIRoute } from 'astro';
 export const GET: APIRoute = async () => {
   const results: Record<string, string> = {};
 
-  // Check env vars
-  results.hasUrl = process.env.UPSTASH_REDIS_REST_URL ? 'YES' : 'NO';
-  results.hasToken = process.env.UPSTASH_REDIS_REST_TOKEN ? 'YES' : 'NO';
+  // Show all relevant env var names (not values for security)
+  const relevantVars = Object.keys(process.env).filter(k =>
+    k.includes('UPSTASH') || k.includes('REDIS') || k.includes('KV_')
+  );
+  results.foundVars = relevantVars.join(', ') || 'NONE';
 
-  if (!process.env.UPSTASH_REDIS_REST_URL) {
-    return new Response(JSON.stringify({ error: 'Missing UPSTASH_REDIS_REST_URL', results }), {
+  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
+
+  results.hasUrl = url ? 'YES' : 'NO';
+  results.hasToken = token ? 'YES' : 'NO';
+
+  if (!url) {
+    return new Response(JSON.stringify({ error: 'No Redis URL found', results }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     });
   }
 
   try {
     const { Redis } = await import('@upstash/redis');
-    const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-    });
+    const redis = new Redis({ url, token: token! });
 
     // Write test
     await redis.set('test-ping', 'ok');
